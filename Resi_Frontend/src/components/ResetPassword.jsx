@@ -1,0 +1,1229 @@
+import { useState, useEffect } from 'react'
+import { Link, useSearchParams, useNavigate, useParams } from 'react-router-dom'
+import { useAlert } from '../context/AlertContext'
+
+function ResetPassword() {
+  const [searchParams] = useSearchParams()
+  const { token: urlToken } = useParams()
+  const navigate = useNavigate()
+  const { success, error: showError } = useAlert()
+
+  const [formData, setFormData] = useState({
+    token: urlToken || searchParams.get('token') || '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  
+  const [loading, setLoading] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  
+  const [passwordStrength, setPasswordStrength] = useState({
+    score: 0,
+    level: 'Weak',
+    color: '#ef4444'
+  })
+  
+  const [requirements, setRequirements] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+    special: false,
+    match: false
+  })
+
+  const [touched, setTouched] = useState({
+    token: false,
+    newPassword: false,
+    confirmPassword: false
+  })
+
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [formError, setFormError] = useState('')
+
+  useEffect(() => {
+    // Auto-focus appropriate field
+    if (!formData.token) {
+      document.getElementById('token')?.focus()
+    } else {
+      document.getElementById('newPassword')?.focus()
+    }
+  }, [formData.token])
+
+  const checkPasswordStrength = (password) => {
+    let score = 0
+    const newRequirements = { ...requirements }
+
+    // Length check
+    if (password.length >= 8) {
+      score += 1
+      newRequirements.length = true
+    } else {
+      newRequirements.length = false
+    }
+
+    // Uppercase check
+    if (/[A-Z]/.test(password)) {
+      score += 1
+      newRequirements.uppercase = true
+    } else {
+      newRequirements.uppercase = false
+    }
+
+    // Lowercase check
+    if (/[a-z]/.test(password)) {
+      score += 1
+      newRequirements.lowercase = true
+    } else {
+      newRequirements.lowercase = false
+    }
+
+    // Number check
+    if (/\d/.test(password)) {
+      score += 1
+      newRequirements.number = true
+    } else {
+      newRequirements.number = false
+    }
+
+    // Password match check
+    if (formData.confirmPassword && password === formData.confirmPassword) {
+      newRequirements.match = true
+    } else if (formData.confirmPassword) {
+      newRequirements.match = false
+    }
+
+    setRequirements(newRequirements)
+
+    let level = 'Weak'
+    let color = '#ef4444'
+
+    if (score >= 4) {
+      level = 'Strong'
+      color = '#10b981'
+    } else if (score >= 3) {
+      level = 'Good'
+      color = '#f59e0b'
+    } else if (score >= 2) {
+      level = 'Fair'
+      color = '#f97316'
+    }
+
+    setPasswordStrength({ score, level, color })
+    return score >= 4
+  }
+
+  const validateField = (name, value) => {
+    switch (name) {
+      case 'token':
+        return !value.trim() ? 'Reset token is required' : ''
+      case 'newPassword':
+        if (!value) return 'New password is required'
+        if (value.length < 8) return 'Password must be at least 8 characters'
+        return ''
+      case 'confirmPassword':
+        if (!value) return 'Please confirm your password'
+        if (value !== formData.newPassword) return 'Passwords do not match'
+        return ''
+      default:
+        return ''
+    }
+  }
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target
+    setTouched(prev => ({
+      ...prev,
+      [name]: true
+    }))
+
+    const error = validateField(name, value)
+    setFieldErrors(prev => ({
+      ...prev,
+      [name]: error
+    }))
+  }
+
+  const handleFocus = (e) => {
+    const { name } = e.target
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }))
+    }
+  }
+
+  const checkPasswordMatch = () => {
+    if (formData.confirmPassword && formData.newPassword) {
+      const match = formData.newPassword === formData.confirmPassword
+      setRequirements(prev => ({ ...prev, match }))
+      return match
+    }
+    return false
+  }
+
+  const validateForm = () => {
+    const tokenValid = formData.token.trim().length > 0
+    const passwordStrong = passwordStrength.score >= 4
+    const passwordsMatch = requirements.match
+    
+    return tokenValid && passwordStrong && passwordsMatch
+  }
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+    
+    // Clear form error banner when user starts typing
+    if (formError) {
+      setFormError('')
+    }
+    
+    // Clear field errors when user starts typing
+    if (touched[name] && fieldErrors[name]) {
+      setFieldErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }))
+    }
+    
+    if (name === 'newPassword') {
+      checkPasswordStrength(value)
+      // Re-check match if confirm password exists
+      if (formData.confirmPassword) {
+        const match = value === formData.confirmPassword
+        setRequirements(prev => ({ ...prev, match }))
+      }
+    } else if (name === 'confirmPassword') {
+      // Check match with new password
+      const match = formData.newPassword === value
+      setRequirements(prev => ({ ...prev, match }))
+    }
+  }
+
+
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    
+    // Clear any previous form error
+    setFormError('')
+    
+    if (!validateForm()) {
+      setFormError('Please fill all fields with valid information')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+  const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          token: formData.token, 
+          newPassword: formData.newPassword 
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setShowSuccess(true)
+        success('Password reset successfully!')
+      } else {
+        throw new Error(data.message || 'Failed to reset password')
+      }
+      
+    } catch (err) {
+      // Error already handled - don't log password reset details
+      let errorMessage = 'There was a problem resetting your password. Please try again.'
+      
+      if (err.message.includes('token')) {
+        errorMessage = 'Invalid or expired reset token. Please request a new reset link.'
+      } else if (err.message.includes('network') || err.message.includes('fetch')) {
+        errorMessage = 'Unable to connect to server. Please check your internet connection.'
+      } else if (err.message) {
+        errorMessage = err.message
+      }
+      
+      setFormError(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoToLogin = () => {
+    navigate('/login')
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      navigate('/login')
+    }
+  }
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  if (showSuccess) {
+    return (
+      <div className="reset-password-container fade-in">
+        <div className="reset-card success-card">
+          <div className="verification-success">
+            <div className="verification-icon-success">✓</div>
+            <h2>Password Reset Successful!</h2>
+            <p>Your password has been changed. You can now log in with your new password.</p>
+            <div className="redirect-animation">
+              <div className="dot"></div>
+              <div className="dot"></div>
+              <div className="dot"></div>
+            </div>
+            <button 
+              onClick={handleGoToLogin}
+              className="verification-button"
+            >
+              Go to Login
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="reset-password-container fade-in">
+      <div className="reset-card">
+        <div className="card-header">
+          <img src="/logo.png" alt="ResiLinked Logo" className="reset-logo" />
+          <h1>Reset Your Password</h1>
+          <p>Enter your new password below</p>
+        </div>
+
+        {formError && (
+          <div className="form-error-banner">
+            <span className="error-icon">⚠️</span>
+            <span className="error-message">{formError}</span>
+          </div>
+        )}
+        
+        <form onSubmit={handleSubmit} className="reset-form">
+          <div className="form-group">
+            <label htmlFor="token">Reset Token</label>
+            <div className="input-wrapper">
+              <input
+                type="text"
+                id="token"
+                name="token"
+                value={formData.token}
+                onChange={handleInputChange}
+                onBlur={handleBlur}
+                onFocus={handleFocus}
+                required
+                placeholder="Enter reset token"
+                className={fieldErrors.token ? 'error' : formData.token && !fieldErrors.token ? 'valid' : ''}
+              />
+              <div className="input-status">
+                {fieldErrors.token && touched.token && (
+                  <span className="error-icon" title={fieldErrors.token}>
+                    ❌
+                  </span>
+                )}
+                {/* Removed success icon for valid token */}
+              </div>
+            </div>
+            {fieldErrors.token && touched.token && (
+              <div className="field-error">
+                {fieldErrors.token}
+              </div>
+            )}
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="newPassword">New Password</label>
+            <div className="input-wrapper">
+              <input
+                type={showPassword ? "text" : "password"}
+                id="newPassword"
+                name="newPassword"
+                value={formData.newPassword}
+                onChange={handleInputChange}
+                onBlur={handleBlur}
+                onFocus={handleFocus}
+                required
+                placeholder="Enter new password"
+                className={fieldErrors.newPassword ? 'error' : formData.newPassword && !fieldErrors.newPassword ? 'valid' : ''}
+              />
+              <div 
+                className="password-toggle-icon" 
+                onClick={() => setShowPassword(!showPassword)}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </svg>
+                )}
+              </div>
+            </div>
+            {fieldErrors.newPassword && touched.newPassword && (
+              <div className="field-error">
+                {fieldErrors.newPassword}
+              </div>
+            )}
+            
+            {formData.newPassword && (
+              <div className="password-strength">
+                <div className="strength-bar">
+                  <div 
+                    className="strength-fill"
+                    style={{ 
+                      width: `${(passwordStrength.score / 4) * 100}%`,
+                      backgroundColor: passwordStrength.color 
+                    }}
+                  ></div>
+                </div>
+                <span 
+                  className="strength-text"
+                  style={{ color: passwordStrength.color }}
+                >
+                  {passwordStrength.level}
+                </span>
+              </div>
+            )}
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="confirmPassword">Confirm Password</label>
+            <div className="input-wrapper">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                id="confirmPassword"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleInputChange}
+                onBlur={handleBlur}
+                onFocus={handleFocus}
+                required
+                placeholder="Confirm new password"
+                className={fieldErrors.confirmPassword ? 'error' : formData.confirmPassword && !fieldErrors.confirmPassword && requirements.match ? 'valid' : ''}
+              />
+              <div 
+                className="password-toggle-icon" 
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                title={showConfirmPassword ? "Hide password" : "Show password"}
+              >
+                {showConfirmPassword ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                  </svg>
+                )}
+              </div>
+            </div>
+            {fieldErrors.confirmPassword && touched.confirmPassword && (
+              <div className="field-error">
+                {fieldErrors.confirmPassword}
+              </div>
+            )}
+          </div>
+          
+          {formData.newPassword && (
+            <div className="password-requirements">
+              <h4>Password Requirements:</h4>
+              <ul>
+                <li className={requirements.length ? 'met' : ''}>
+                  At least 8 characters
+                </li>
+                <li className={requirements.uppercase ? 'met' : ''}>
+                  At least one uppercase letter
+                </li>
+                <li className={requirements.lowercase ? 'met' : ''}>
+                  At least one lowercase letter
+                </li>
+                <li className={requirements.number ? 'met' : ''}>
+                  At least one number
+                </li>
+                <li className={requirements.match ? 'met' : ''}>
+                  Passwords match
+                </li>
+              </ul>
+            </div>
+          )}
+          
+          <button 
+            type="submit" 
+            className="reset-btn"
+            disabled={loading || !validateForm()}
+          >
+            {loading ? (
+              <div className="btn-loader">
+                <div className="spinner"></div>
+                <span>Resetting...</span>
+              </div>
+            ) : (
+              'Reset Password'
+            )}
+          </button>
+        </form>
+        
+        <div className="form-footer">
+          <Link to="/login" className="back-link">
+            Back to Login
+          </Link>
+        </div>
+      </div>
+      
+  <style>{`
+        .reset-password-container {
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, #9333ea 0%, #7c3aed 25%, #6b21a8 75%, #581c87 100%);
+          padding: 2rem 1rem;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .reset-password-container::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"><defs><radialGradient id="a" cx="50%" cy="50%"><stop offset="0%" stop-color="%23ffffff" stop-opacity="0.1"/><stop offset="100%" stop-color="%23ffffff" stop-opacity="0"/></radialGradient></defs><circle cx="200" cy="200" r="150" fill="url(%23a)"/><circle cx="800" cy="300" r="100" fill="url(%23a)"/><circle cx="600" cy="700" r="120" fill="url(%23a)"/></svg>') center/cover;
+          pointer-events: none;
+        }
+        
+        .reset-card {
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(20px);
+          border-radius: 24px;
+          box-shadow: 
+            0 32px 64px rgba(147, 51, 234, 0.2),
+            0 0 0 1px rgba(255, 255, 255, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+          padding: 3rem 2.5rem;
+          width: 100%;
+          max-width: 540px;
+          max-height: 90vh;
+          overflow-y: auto;
+          position: relative;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .reset-card::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .reset-card::-webkit-scrollbar-track {
+          background: rgba(147, 51, 234, 0.1);
+          border-radius: 8px;
+        }
+
+        .reset-card::-webkit-scrollbar-thumb {
+          background: linear-gradient(135deg, #9333ea, #7c3aed);
+          border-radius: 8px;
+        }
+
+        .reset-card::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(135deg, #7c3aed, #6b21a8);
+        }
+        
+        .card-header {
+          text-align: center;
+          margin-bottom: 3rem;
+        }
+
+        .reset-logo {
+          width: 80px;
+          height: 80px;
+          border-radius: 20px;
+          margin-bottom: 1.5rem;
+          box-shadow: 0 8px 32px rgba(147, 51, 234, 0.3);
+        }
+        
+        .card-header h1 {
+          background: linear-gradient(135deg, #9333ea, #6b21a8);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          margin: 0 0 0.75rem 0;
+          font-size: 2.25rem;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+        }
+        
+        .card-header p {
+          color: #64748b;
+          margin: 0;
+          font-size: 1.1rem;
+          font-weight: 500;
+        }
+        
+        .reset-form {
+          margin-bottom: 2rem;
+        }
+
+        .form-error-banner {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 1rem 1.25rem;
+          background: rgba(220, 38, 38, 0.1);
+          border: 2px solid #dc2626;
+          border-radius: 16px;
+          margin-bottom: 1.5rem;
+          animation: slideDown 0.3s ease;
+        }
+
+        .form-error-banner .error-icon {
+          font-size: 1.25rem;
+          flex-shrink: 0;
+        }
+
+        .form-error-banner .error-message {
+          color: #dc2626;
+          font-weight: 600;
+          font-size: 0.95rem;
+          line-height: 1.4;
+        }
+
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .form-group {
+          margin-bottom: 1.75rem;
+        }
+        
+        .form-group label {
+          display: block;
+          margin-bottom: 0.75rem;
+          color: #374151;
+          font-weight: 600;
+          font-size: 0.95rem;
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
+        }
+
+        .input-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .password-toggle-icon {
+          position: absolute;
+          right: 1rem;
+          top: 50%;
+          transform: translateY(-50%);
+          cursor: pointer;
+          color: #64748b;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.25rem;
+          border-radius: 6px;
+          transition: all 0.2s ease;
+          z-index: 10;
+        }
+
+        .password-toggle-icon:hover {
+          color: #9333ea;
+          background: rgba(147, 51, 234, 0.1);
+        }
+        
+        .form-group input {
+          width: 100%;
+          padding: 1rem 3.5rem 1rem 1.25rem;
+          border: 2px solid rgba(147, 51, 234, 0.1);
+          border-radius: 16px;
+          font-size: 1rem;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-sizing: border-box;
+          background: rgba(255, 255, 255, 0.8);
+          backdrop-filter: blur(10px);
+          font-family: inherit;
+        }
+        
+        .form-group input:focus {
+          outline: none;
+          border-color: #9333ea;
+          background: rgba(255, 255, 255, 0.95);
+          box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.1);
+          transform: translateY(-1px);
+        }
+
+        .form-group input:hover {
+          border-color: rgba(147, 51, 234, 0.2);
+          background: rgba(255, 255, 255, 0.9);
+        }
+
+        .form-group input.valid {
+          border-color: #059669;
+          background: rgba(255, 255, 255, 0.95);
+        }
+
+        .form-group input.valid:focus {
+          box-shadow: 
+            0 0 0 4px rgba(5, 150, 105, 0.1),
+            0 8px 24px rgba(5, 150, 105, 0.15);
+        }
+        
+        .form-group input.error {
+          border-color: #dc2626;
+          background: rgba(255, 255, 255, 0.95);
+        }
+
+        .form-group input.error:focus {
+          box-shadow: 
+            0 0 0 4px rgba(220, 38, 38, 0.1),
+            0 8px 24px rgba(220, 38, 38, 0.15);
+        }
+
+        .input-status {
+          position: absolute;
+          right: 1rem;
+          top: 50%;
+          transform: translateY(-50%);
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+          pointer-events: none;
+          z-index: 1;
+        }
+
+        .error-icon {
+          color: #dc2626;
+          display: flex;
+          align-items: center;
+        }
+
+        .success-icon {
+          color: #059669;
+          display: flex;
+          align-items: center;
+        }
+
+        .field-error {
+          margin-top: 0.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem 0.75rem;
+          background: rgba(220, 38, 38, 0.1);
+          border: 1px solid rgba(220, 38, 38, 0.2);
+          border-radius: 10px;
+          font-size: 0.875rem;
+          color: #dc2626;
+          font-weight: 500;
+          animation: slideIn 0.2s ease;
+        }
+
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+
+        
+        .password-strength {
+          margin-top: 0.75rem;
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.5rem 0.75rem;
+          background: rgba(147, 51, 234, 0.05);
+          border-radius: 12px;
+          border: 1px solid rgba(147, 51, 234, 0.1);
+        }
+        
+        .strength-bar {
+          flex: 1;
+          height: 6px;
+          background: #e5e7eb;
+          border-radius: 3px;
+          overflow: hidden;
+        }
+        
+        .strength-fill {
+          height: 100%;
+          transition: all 0.3s ease;
+          border-radius: 3px;
+        }
+        
+        .strength-text {
+          font-size: 0.875rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
+        }
+        
+        .password-requirements {
+          background: linear-gradient(135deg, rgba(147, 51, 234, 0.05), rgba(147, 51, 234, 0.02));
+          padding: 1.25rem;
+          border-radius: 16px;
+          margin-bottom: 1.75rem;
+          border: 1px solid rgba(147, 51, 234, 0.1);
+          backdrop-filter: blur(10px);
+        }
+        
+        .password-requirements h4 {
+          margin: 0 0 0.75rem 0;
+          font-size: 0.95rem;
+          color: #374151;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
+        }
+        
+        .password-requirements ul {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          display: grid;
+          gap: 0.5rem;
+        }
+        
+        .password-requirements li {
+          position: relative;
+          font-size: 0.875rem;
+          color: #64748b;
+          padding-left: 1.75rem;
+          display: flex;
+          align-items: center;
+          transition: all 0.2s ease;
+        }
+        
+        .password-requirements li::before {
+          content: '✗';
+          position: absolute;
+          left: 0;
+          color: #dc2626;
+          font-weight: bold;
+          font-size: 1rem;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: rgba(220, 38, 38, 0.1);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+        }
+        
+        .password-requirements li.met {
+          color: #059669;
+          font-weight: 500;
+        }
+        
+        .password-requirements li.met::before {
+          content: '✓';
+          color: white;
+          background: #059669;
+          box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+        }
+        
+        .reset-btn {
+          width: 100%;
+          background: linear-gradient(135deg, #9333ea, #7c3aed);
+          color: white;
+          border: none;
+          padding: 1.25rem 1.5rem;
+          border-radius: 16px;
+          font-size: 1.1rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          margin-bottom: 1.5rem;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 8px 24px rgba(147, 51, 234, 0.3);
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 58px;
+        }
+
+        .reset-btn::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+          transition: left 0.3s ease;
+        }
+
+        .reset-btn:hover:not(:disabled) {
+          background: linear-gradient(135deg, #7c3aed, #6b21a8);
+          transform: translateY(-1px);
+          box-shadow: 0 10px 28px rgba(147, 51, 234, 0.35);
+        }
+
+        .reset-btn:hover:not(:disabled)::before {
+          left: 100%;
+        }
+
+        .reset-btn:active:not(:disabled) {
+          transform: translateY(0);
+          box-shadow: 0 4px 16px rgba(147, 51, 234, 0.3);
+        }
+        
+        .reset-btn:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+          transform: none;
+          box-shadow: 0 4px 16px rgba(147, 51, 234, 0.2);
+        }
+        
+        .btn-loader {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem;
+        }
+        
+        .spinner {
+          width: 20px;
+          height: 20px;
+          border: 2.5px solid rgba(255, 255, 255, 0.3);
+          border-top: 2.5px solid white;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        .form-footer {
+          text-align: center;
+          padding-top: 2rem;
+          border-top: 1px solid rgba(147, 51, 234, 0.1);
+        }
+        
+        .back-link {
+          color: #9333ea;
+          text-decoration: none;
+          font-size: 0.95rem;
+          font-weight: 600;
+          padding: 0.5rem 1rem;
+          border-radius: 12px;
+          transition: all 0.2s ease;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        
+        .back-link:hover {
+          background: rgba(147, 51, 234, 0.1);
+          text-decoration: none;
+        }
+        
+        .success-content {
+          text-align: center;
+        }
+        
+        .success-icon {
+          margin-bottom: 2rem;
+          display: flex;
+          justify-content: center;
+        }
+        
+        .success-message h2 {
+          background: linear-gradient(135deg, #059669, #047857);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          margin: 0 0 1rem 0;
+          font-size: 2rem;
+          font-weight: 700;
+        }
+        
+        .success-message p {
+          color: #374151;
+          margin-bottom: 2rem;
+          line-height: 1.6;
+          font-size: 1.1rem;
+        }
+
+        .btn {
+          padding: 1rem 2rem;
+          border: none;
+          border-radius: 16px;
+          font-size: 1.1rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 58px;
+          text-transform: uppercase;
+          letter-spacing: 0.025em;
+        }
+        
+        .btn-primary {
+          background: linear-gradient(135deg, #9333ea, #7c3aed);
+          color: white;
+          box-shadow: 0 8px 24px rgba(147, 51, 234, 0.3);
+        }
+        
+        .btn-primary:hover {
+          background: linear-gradient(135deg, #7c3aed, #6b21a8);
+          box-shadow: 0 10px 28px rgba(147, 51, 234, 0.35);
+          text-decoration: none;
+        }
+
+        .fade-in {
+          animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+          from { 
+            opacity: 0; 
+          }
+          to { 
+            opacity: 1; 
+          }
+        }
+
+        /* Success state styles */
+        .success-card {
+          max-width: 500px;
+          text-align: center;
+        }
+
+        .verification-success {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .verification-icon-success {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          background-color: #ecfdf5;
+          color: #059669;
+          border: 2px solid #10b981;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 40px;
+          font-weight: bold;
+          margin-bottom: 1.5rem;
+        }
+
+        .verification-success h2 {
+          margin-bottom: 1rem;
+          font-size: 1.875rem;
+          font-weight: 700;
+          color: #1e293b;
+        }
+
+        .verification-success p {
+          margin-bottom: 1.5rem;
+          color: #64748b;
+          line-height: 1.6;
+          font-size: 1.125rem;
+        }
+
+        .redirect-animation {
+          display: flex;
+          gap: 8px;
+          justify-content: center;
+          margin: 1rem 0;
+        }
+
+        .dot {
+          width: 12px;
+          height: 12px;
+          background: linear-gradient(135deg, #9333ea, #7c3aed);
+          border-radius: 50%;
+          animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .dot:nth-child(1) {
+          animation-delay: -0.32s;
+        }
+
+        .dot:nth-child(2) {
+          animation-delay: -0.16s;
+        }
+
+        @keyframes bounce {
+          0%, 80%, 100% {
+            transform: scale(0);
+          }
+          40% {
+            transform: scale(1);
+          }
+        }
+
+        .verification-button {
+          margin-top: 1rem;
+          display: inline-block;
+          background: linear-gradient(135deg, #9333ea, #7c3aed);
+          color: white;
+          border: none;
+          padding: 0.875rem 2rem;
+          border-radius: 12px;
+          font-size: 1rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s;
+          text-decoration: none;
+          box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+          width: 100%;
+          max-width: 250px;
+        }
+
+        .verification-button:hover {
+          background: linear-gradient(135deg, #8b31da, #6c2edd);
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3);
+        }
+        
+        @media (max-width: 768px) {
+          .reset-password-container {
+            padding: 1rem 0.5rem;
+          }
+
+          .reset-card {
+            padding: 2rem 1.5rem;
+            border-radius: 20px;
+            margin: 0.5rem;
+          }
+          
+          .card-header h1 {
+            font-size: 1.75rem;
+          }
+
+          .reset-logo {
+            width: 64px;
+            height: 64px;
+          }
+
+          .form-group input {
+            padding: 0.875rem 3rem 0.875rem 1rem;
+            font-size: 16px; /* Prevents zoom on iOS */
+          }
+
+          .input-status {
+            right: 1rem;
+            gap: 0.2rem;
+          }
+
+          .reset-btn {
+            padding: 1rem 1.25rem;
+            font-size: 1rem;
+          }
+
+          .password-requirements {
+            padding: 1rem;
+          }
+
+          .password-requirements ul {
+            gap: 0.375rem;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .reset-card {
+            padding: 1.5rem 1rem;
+            margin: 0.25rem;
+          }
+
+          .card-header {
+            margin-bottom: 2rem;
+          }
+
+          .card-header h1 {
+            font-size: 1.5rem;
+          }
+
+          .form-group input {
+            padding: 0.75rem 3rem 0.75rem 0.875rem;
+            font-size: 16px;
+          }
+
+          .input-status {
+            right: 1rem;
+            gap: 0.15rem;
+          }
+
+          .error-icon,
+          .success-icon {
+            font-size: 0.8rem;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .reset-card {
+            padding: 1.25rem 0.875rem;
+          }
+
+          .form-group input {
+            padding: 0.7rem 2.5rem 0.7rem 0.75rem;
+            font-size: 16px;
+          }
+
+          .input-status {
+            right: 0.75rem;
+          }
+
+          .card-header h1 {
+            font-size: 1.25rem;
+          }
+        }
+          }
+
+          .form-group {
+            margin-bottom: 1.5rem;
+          }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+export default ResetPassword

@@ -1,0 +1,244 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import './App.css'
+
+// Import all page components
+import Home from './components/Home'
+import Login from './components/Login'
+import Register from './components/Register'
+import RegistrationSuccess from './components/RegistrationSuccess'
+import TermsOfService from './components/TermsOfService'
+import Profile from './components/Profile'
+import PostJob from './components/PostJob'
+import SearchJobs from './components/SearchJobs'
+import SearchWorkers from './components/SearchWorkers'
+import JobsManagement from './components/JobsManagement'
+import EmployeeDashboard from './components/EmployeeDashboard'
+import EmployerDashboard from './components/EmployerDashboard'
+import EditJob from './components/EditJob'
+import AdminDashboard from './components/AdminDashboard'
+import Settings from './components/Settings'
+import Help from './components/Help'
+import About from './components/About'
+import Privacy from './components/Privacy'
+import UserDetails from './components/UserDetails'
+import ResetRequest from './components/ResetRequest'
+import ResetPassword from './components/ResetPassword'
+import VerifyEmail from './components/VerifyEmail'
+import VerifyEmailChange from './components/VerifyEmailChange'
+import Notifications from './components/Notifications'
+import Chat from './components/Chat'
+import Chatbot from './components/Chatbot'
+import PaymentSuccess from './components/PaymentSuccess'
+import PaymentFailed from './components/PaymentFailed'
+import PaymentHistory from './components/PaymentHistory'
+
+// Layout component
+import Layout from './components/Layout'
+
+// Auth context for managing user state
+import { AuthProvider, useAuth } from './context/AuthContext'
+import { AlertProvider } from './context/AlertContext'
+import { NotificationProvider } from './context/NotificationContext'
+import { LanguageProvider } from './context/LanguageContext'
+
+// Protected Route component
+function ProtectedRoute({ children, requiredUserType = null }) {
+  const { user, isAuthenticated, loading } = useAuth()
+  
+  // Show loading indicator while checking authentication
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        flexDirection: 'column',
+        gap: '1rem'
+      }}>
+        <div className="spinner" style={{
+          width: '40px',
+          height: '40px',
+          border: '4px solid rgba(147, 51, 234, 0.2)',
+          borderTop: '4px solid #9333ea',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }}></div>
+        <p>Loading your session...</p>
+        
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    )
+  }
+  
+  // Redirect if not authenticated
+  if (!isAuthenticated) {
+    console.log('Not authenticated, redirecting to login');
+    return <Navigate to="/login" replace />
+  }
+  
+  // Redirect if wrong user type
+  if (requiredUserType && user?.userType !== requiredUserType) {
+    console.log('Wrong user type, redirecting to home');
+    return <Navigate to="/" replace />
+  }
+  
+  // User is authenticated and has correct role
+  return children
+}
+
+// Admin Route component
+function AdminRoute({ children }) {
+  return (
+    <ProtectedRoute requiredUserType="admin">
+      {children}
+    </ProtectedRoute>
+  )
+}
+
+function App() {
+  return (
+    <AlertProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <NotificationProvider>
+            <Router>
+            <Layout>
+              <Routes>
+            {/* Public routes */}
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/registration-success" element={<RegistrationSuccess />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
+            <Route path="/reset-request" element={<ResetRequest />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/verify-email/:token" element={<VerifyEmail />} />
+            <Route path="/verify-email-change/:token" element={<VerifyEmailChange />} />
+            
+            {/* Payment routes */}
+            <Route path="/payment/success" element={
+              <ProtectedRoute>
+                <PaymentSuccess />
+              </ProtectedRoute>
+            } />
+            <Route path="/payment/failed" element={
+              <ProtectedRoute>
+                <PaymentFailed />
+              </ProtectedRoute>
+            } />
+            <Route path="/payment-history" element={
+              <ProtectedRoute>
+                <PaymentHistory />
+              </ProtectedRoute>
+            } />
+            
+            {/* Protected routes */}
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/profile/:userId" element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/post-job" element={
+              <ProtectedRoute>
+                <PostJob />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/search-jobs" element={
+              <ProtectedRoute>
+                <SearchJobs />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/search-workers" element={
+              <ProtectedRoute>
+                <SearchWorkers />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/jobs-management" element={
+              <ProtectedRoute>
+                <JobsManagement />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/employee-dashboard" element={
+              <ProtectedRoute>
+                <EmployeeDashboard />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/employer-dashboard" element={
+              <ProtectedRoute>
+                <EmployerDashboard />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/edit-job/:jobId" element={
+              <ProtectedRoute>
+                <EditJob />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/notifications" element={
+              <ProtectedRoute>
+                <Notifications />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/chat" element={
+              <ProtectedRoute>
+                <Chat />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/user-details/:userId" element={
+              <ProtectedRoute>
+                <UserDetails />
+              </ProtectedRoute>
+            } />
+            
+            {/* Admin routes */}
+            <Route path="/admin-dashboard" element={
+              <AdminRoute>
+                <AdminDashboard />
+              </AdminRoute>
+            } />
+            
+            {/* Catch all route */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Layout>
+          <Chatbot />
+          </Router>
+        </NotificationProvider>
+      </AuthProvider>
+      </LanguageProvider>
+    </AlertProvider>
+  )
+}export default App

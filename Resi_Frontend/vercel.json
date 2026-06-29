@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ],
+  "env": {
+  "VITE_API_URL": "https://resi-backend-ihyu.vercel.app/api"
+  },
+  "build": {
+    "env": {
+  "VITE_API_URL": "https://resi-backend-ihyu.vercel.app/api"
+    }
+  },
+  "github": {
+    "silent": true
+  }
+}
